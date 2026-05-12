@@ -1,5 +1,4 @@
-// question1.cpp
-// Author: Ella Williams
+// main.cpp
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
