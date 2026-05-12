@@ -30,7 +30,7 @@ Mat detectEdges(const Mat &input)
 int main()
 {
     // Load the test image and ensure it is valid
-    Mat test = imread("test-car.jpg");
+    Mat test = imread("images/test-car.jpg");
     if (test.empty())
     {
         std::cerr << "Error: Could not load image." << std::endl;
