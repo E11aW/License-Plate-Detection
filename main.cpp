@@ -19,11 +19,36 @@ int main()
 
     PlateDetector detector;
 
-    std::vector<RotatedRect> candidates = detector.detectPlates(image);
+    RotatedRect bestPlate;
+    Mat extractedPlate;
 
-    detector.drawCandidates(image, candidates);
+    bool foundPlate = detector.detectBestPlate(
+        image,
+        bestPlate,
+        extractedPlate
+    );
 
-    imshow("Detected License Plate Candidates", image);
+    if (!foundPlate)
+    {
+        std::cout << "No license plate candidate found." << std::endl;
+
+        imshow("Original Image", image);
+        waitKey(0);
+
+        return 0;
+    }
+
+    detector.drawBestPlate(image, bestPlate);
+
+    imshow("Best License Plate Candidate", image);
+
+    if (!extractedPlate.empty())
+    {
+        imshow("Extracted License Plate", extractedPlate);
+
+        imwrite("images/extracted-plate.jpg", extractedPlate);
+    }
+
     waitKey(0);
 
     return 0;
