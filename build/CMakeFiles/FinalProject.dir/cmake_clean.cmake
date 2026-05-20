@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/FinalProject.dir/PlateDetector.cpp.o"
+  "CMakeFiles/FinalProject.dir/PlateDetector.cpp.o.d"
   "CMakeFiles/FinalProject.dir/main.cpp.o"
   "CMakeFiles/FinalProject.dir/main.cpp.o.d"
   "FinalProject"

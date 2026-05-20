@@ -129,6 +129,30 @@ FinalProject/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/FinalProject.dir/build.make CMakeFiles/FinalProject.dir/build
 .PHONY : FinalProject/fast
 
+PlateDetector.o: PlateDetector.cpp.o
+.PHONY : PlateDetector.o
+
+# target to build an object file
+PlateDetector.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/FinalProject.dir/build.make CMakeFiles/FinalProject.dir/PlateDetector.cpp.o
+.PHONY : PlateDetector.cpp.o
+
+PlateDetector.i: PlateDetector.cpp.i
+.PHONY : PlateDetector.i
+
+# target to preprocess a source file
+PlateDetector.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/FinalProject.dir/build.make CMakeFiles/FinalProject.dir/PlateDetector.cpp.i
+.PHONY : PlateDetector.cpp.i
+
+PlateDetector.s: PlateDetector.cpp.s
+.PHONY : PlateDetector.s
+
+# target to generate assembly for a file
+PlateDetector.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/FinalProject.dir/build.make CMakeFiles/FinalProject.dir/PlateDetector.cpp.s
+.PHONY : PlateDetector.cpp.s
+
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -162,6 +186,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... FinalProject"
+	@echo "... PlateDetector.o"
+	@echo "... PlateDetector.i"
+	@echo "... PlateDetector.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

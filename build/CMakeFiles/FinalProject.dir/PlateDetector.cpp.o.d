@@ -1,5 +1,6 @@
-CMakeFiles/FinalProject.dir/main.cpp.o: \
-  /Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/main.cpp \
+CMakeFiles/FinalProject.dir/PlateDetector.cpp.o: \
+  /Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/PlateDetector.cpp \
+  /Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/PlateDetector.h \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core.hpp \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core/cvdef.h \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core/version.hpp \
@@ -818,8 +819,8 @@ CMakeFiles/FinalProject.dir/main.cpp.o: \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core/utility.hpp \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core/optim.hpp \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/core/ovx.hpp \
+  /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/imgproc.hpp \
+  /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/./imgproc/segmentation.hpp \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/highgui.hpp \
   /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/imgcodecs.hpp \
-  /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/videoio.hpp \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/iostream \
-  /Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/PlateDetector.h
+  /opt/homebrew/Cellar/opencv/4.13.0_10/include/opencv4/opencv2/videoio.hpp

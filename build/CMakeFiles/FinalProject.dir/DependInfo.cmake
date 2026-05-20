@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/PlateDetector.cpp" "CMakeFiles/FinalProject.dir/PlateDetector.cpp.o" "gcc" "CMakeFiles/FinalProject.dir/PlateDetector.cpp.o.d"
   "/Users/claytonmcarthur/Desktop/VSCodeProjects/487/Final_Project/License-Plate-Detection/main.cpp" "CMakeFiles/FinalProject.dir/main.cpp.o" "gcc" "CMakeFiles/FinalProject.dir/main.cpp.o.d"
   )
 
