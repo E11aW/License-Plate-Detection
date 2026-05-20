@@ -1,6 +1,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <iostream>
 #include <vector>
@@ -70,22 +71,45 @@ int main()
 
     /*
         -----------------------------
-        Text Detection
+        Main Text Region Detection
         -----------------------------
     */
 
     TextDetection textDetector;
 
-    // Convert plate to binary image
-    Mat binaryPlate = textDetector.preprocessPlate(extractedPlate);
+    Mat textRegion = textDetector.extractMainTextRegion(extractedPlate);
 
-    imshow("Binary Plate", binaryPlate);
+    if (textRegion.empty())
+    {
+        std::cout << "Could not extract main text region." << std::endl;
+        return 0;
+    }
 
-    // Find character bounding boxes
+    imshow("Main Text Region", textRegion);
+
+    imwrite("images/text-region.jpg", textRegion);
+
+    /*
+        -----------------------------
+        Binary Text Region
+        -----------------------------
+    */
+
+    Mat binaryPlate = textDetector.preprocessPlate(textRegion);
+
+    imshow("Binary Text Region", binaryPlate);
+
+    imwrite("images/binary-text-region.jpg", binaryPlate);
+
+    /*
+        -----------------------------
+        Character Detection
+        -----------------------------
+    */
+
     std::vector<Rect> characterRegions =
         textDetector.detectCharacterRegions(binaryPlate);
 
-    // Segment character images
     std::vector<Mat> characterImages =
         textDetector.segmentCharacters(
             binaryPlate,
@@ -95,7 +119,7 @@ int main()
         Draw character boxes for visualization
     */
 
-    Mat characterDisplay = extractedPlate.clone();
+    Mat characterDisplay = textRegion.clone();
 
     for (const auto &rect : characterRegions)
     {
@@ -108,6 +132,8 @@ int main()
 
     imshow("Detected Characters", characterDisplay);
 
+    imwrite("images/detected-characters.jpg", characterDisplay);
+
     /*
         -----------------------------
         Text Recognition
@@ -115,16 +141,6 @@ int main()
     */
 
     TextRecognition recognizer;
-
-    /*
-        NOTE:
-        You must train your classifier before
-        recognition will work correctly.
-
-        Example future usage:
-
-        recognizer.train(trainingData, labels);
-    */
 
     std::string recognizedPlate =
         recognizer.recognizePlate(characterImages);
@@ -145,6 +161,11 @@ int main()
             "Character " + std::to_string(i);
 
         imshow(windowName, characterImages[i]);
+
+        std::string outputPath =
+            "images/character-" + std::to_string(i) + ".jpg";
+
+        imwrite(outputPath, characterImages[i]);
     }
 
     waitKey(0);
