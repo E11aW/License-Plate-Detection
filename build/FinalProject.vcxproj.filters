@@ -4,6 +4,15 @@
     <ClCompile Include="C:\Users\EllaR\OneDrive\Documents\School\UWB\CSS487\Final Project\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\EllaR\OneDrive\Documents\School\UWB\CSS487\Final Project\PlateDetector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\EllaR\OneDrive\Documents\School\UWB\CSS487\Final Project\TextRecognition.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\EllaR\OneDrive\Documents\School\UWB\CSS487\Final Project\TextDetection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\EllaR\OneDrive\Documents\School\UWB\CSS487\Final Project\CMakeLists.txt" />

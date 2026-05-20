@@ -1,45 +1,152 @@
-// main.cpp
-
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+
 #include <iostream>
+#include <vector>
+#include <string>
+
+#include "PlateDetector.h"
+#include "TextDetection.h"
+#include "TextRecognition.h"
+
 using namespace cv;
 
-// Function to detect edges in an image using Canny edge detection
-// Preconditions: input is a valid image matrix
-// Postconditions: returns a matrix containing the detected edges
-Mat detectEdges(const Mat &input)
-{
-    Mat gray, edges;
-
-    // Convert the image to grayscale
-    cvtColor(input, gray, COLOR_BGR2GRAY);
-
-    // Apply Gaussian blur to reduce noise
-    GaussianBlur(gray, gray, Size(5, 5), 1.5);
-
-    // Use Canny edge detection
-    Canny(gray, edges, 100, 200);
-    return edges;
-}
-
-// Main function that .....
-// Preconditions:
-// Postconditions:
 int main()
 {
-    // Load the test image and ensure it is valid
-    Mat test = imread("images/test-car.jpg");
-    if (test.empty())
+    Mat image = imread("images/test-car.jpg");
+
+    if (image.empty())
     {
         std::cerr << "Error: Could not load image." << std::endl;
         return -1;
     }
 
-    // Detect edges in the image and display the result
-    Mat output = detectEdges(test);
-    imshow("Detected Edges", output);
+    /*
+        -----------------------------
+        Plate Detection
+        -----------------------------
+    */
+
+    PlateDetector plateDetector;
+
+    RotatedRect bestPlate;
+    Mat extractedPlate;
+
+    bool foundPlate = plateDetector.detectBestPlate(
+        image,
+        bestPlate,
+        extractedPlate);
+
+    if (!foundPlate)
+    {
+        std::cout << "No license plate candidate found." << std::endl;
+
+        imshow("Original Image", image);
+        waitKey(0);
+
+        return 0;
+    }
+
+    plateDetector.drawBestPlate(image, bestPlate);
+
+    imshow("Detected License Plate", image);
+
+    /*
+        -----------------------------
+        Save / Show Extracted Plate
+        -----------------------------
+    */
+
+    if (extractedPlate.empty())
+    {
+        std::cout << "Extracted plate image is empty." << std::endl;
+        return 0;
+    }
+
+    imshow("Extracted Plate", extractedPlate);
+
+    imwrite("images/extracted-plate.jpg", extractedPlate);
+
+    /*
+        -----------------------------
+        Text Detection
+        -----------------------------
+    */
+
+    TextDetection textDetector;
+
+    // Convert plate to binary image
+    Mat binaryPlate = textDetector.preprocessPlate(extractedPlate);
+
+    imshow("Binary Plate", binaryPlate);
+
+    // Find character bounding boxes
+    std::vector<Rect> characterRegions =
+        textDetector.detectCharacterRegions(binaryPlate);
+
+    // Segment character images
+    std::vector<Mat> characterImages =
+        textDetector.segmentCharacters(
+            binaryPlate,
+            characterRegions);
+
+    /*
+        Draw character boxes for visualization
+    */
+
+    Mat characterDisplay = extractedPlate.clone();
+
+    for (const auto &rect : characterRegions)
+    {
+        rectangle(
+            characterDisplay,
+            rect,
+            Scalar(0, 255, 0),
+            2);
+    }
+
+    imshow("Detected Characters", characterDisplay);
+
+    /*
+        -----------------------------
+        Text Recognition
+        -----------------------------
+    */
+
+    TextRecognition recognizer;
+
+    /*
+        NOTE:
+        You must train your classifier before
+        recognition will work correctly.
+
+        Example future usage:
+
+        recognizer.train(trainingData, labels);
+    */
+
+    std::string recognizedPlate =
+        recognizer.recognizePlate(characterImages);
+
+    std::cout << "Recognized Plate: "
+              << recognizedPlate
+              << std::endl;
+
+    /*
+        -----------------------------
+        Show Segmented Characters
+        -----------------------------
+    */
+
+    for (size_t i = 0; i < characterImages.size(); i++)
+    {
+        std::string windowName =
+            "Character " + std::to_string(i);
+
+        imshow(windowName, characterImages[i]);
+    }
+
     waitKey(0);
 
     return 0;
