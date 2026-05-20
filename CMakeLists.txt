@@ -11,6 +11,8 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 add_executable(FinalProject 
     main.cpp
     PlateDetector.cpp
+    TextRecognition.cpp
+    TextDetection.cpp
 )
 
 # Link OpenCV libraries

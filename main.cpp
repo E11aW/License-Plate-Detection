@@ -1,15 +1,20 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+
 #include <iostream>
+#include <vector>
+#include <string>
 
 #include "PlateDetector.h"
+#include "TextDetection.h"
+#include "TextRecognition.h"
 
 using namespace cv;
 
 int main()
 {
-    Mat image = imread("images/test-car3.jpg");
+    Mat image = imread("images/test-car.jpg");
 
     if (image.empty())
     {
@@ -17,16 +22,21 @@ int main()
         return -1;
     }
 
-    PlateDetector detector;
+    /*
+        -----------------------------
+        Plate Detection
+        -----------------------------
+    */
+
+    PlateDetector plateDetector;
 
     RotatedRect bestPlate;
     Mat extractedPlate;
 
-    bool foundPlate = detector.detectBestPlate(
+    bool foundPlate = plateDetector.detectBestPlate(
         image,
         bestPlate,
-        extractedPlate
-    );
+        extractedPlate);
 
     if (!foundPlate)
     {
@@ -38,15 +48,103 @@ int main()
         return 0;
     }
 
-    detector.drawBestPlate(image, bestPlate);
+    plateDetector.drawBestPlate(image, bestPlate);
 
-    imshow("Best License Plate Candidate", image);
+    imshow("Detected License Plate", image);
 
-    if (!extractedPlate.empty())
+    /*
+        -----------------------------
+        Save / Show Extracted Plate
+        -----------------------------
+    */
+
+    if (extractedPlate.empty())
     {
-        imshow("Extracted License Plate", extractedPlate);
+        std::cout << "Extracted plate image is empty." << std::endl;
+        return 0;
+    }
 
-        imwrite("images/extracted-plate.jpg", extractedPlate);
+    imshow("Extracted Plate", extractedPlate);
+
+    imwrite("images/extracted-plate.jpg", extractedPlate);
+
+    /*
+        -----------------------------
+        Text Detection
+        -----------------------------
+    */
+
+    TextDetection textDetector;
+
+    // Convert plate to binary image
+    Mat binaryPlate = textDetector.preprocessPlate(extractedPlate);
+
+    imshow("Binary Plate", binaryPlate);
+
+    // Find character bounding boxes
+    std::vector<Rect> characterRegions =
+        textDetector.detectCharacterRegions(binaryPlate);
+
+    // Segment character images
+    std::vector<Mat> characterImages =
+        textDetector.segmentCharacters(
+            binaryPlate,
+            characterRegions);
+
+    /*
+        Draw character boxes for visualization
+    */
+
+    Mat characterDisplay = extractedPlate.clone();
+
+    for (const auto &rect : characterRegions)
+    {
+        rectangle(
+            characterDisplay,
+            rect,
+            Scalar(0, 255, 0),
+            2);
+    }
+
+    imshow("Detected Characters", characterDisplay);
+
+    /*
+        -----------------------------
+        Text Recognition
+        -----------------------------
+    */
+
+    TextRecognition recognizer;
+
+    /*
+        NOTE:
+        You must train your classifier before
+        recognition will work correctly.
+
+        Example future usage:
+
+        recognizer.train(trainingData, labels);
+    */
+
+    std::string recognizedPlate =
+        recognizer.recognizePlate(characterImages);
+
+    std::cout << "Recognized Plate: "
+              << recognizedPlate
+              << std::endl;
+
+    /*
+        -----------------------------
+        Show Segmented Characters
+        -----------------------------
+    */
+
+    for (size_t i = 0; i < characterImages.size(); i++)
+    {
+        std::string windowName =
+            "Character " + std::to_string(i);
+
+        imshow(windowName, characterImages[i]);
     }
 
     waitKey(0);
