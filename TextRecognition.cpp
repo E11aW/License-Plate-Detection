@@ -1,129 +1,115 @@
 #include "TextRecognition.h"
-
 #include <opencv2/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
-
+#include <opencv2/highgui.hpp>
 #include <iostream>
+#include <filesystem>
 
 TextRecognition::TextRecognition()
 {
     loadTemplates();
 }
 
-/*
-    Load template images from disk.
-*/
 void TextRecognition::loadTemplates()
 {
-    std::string characters =
+    std::string path = "templates/";
+
+    std::string chars =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-    for (char c : characters)
+    for (char c : chars)
     {
-        std::string path =
-            "templates/" + std::string(1, c) + ".png";
+        std::string file = path + std::string(1, c) + ".png";
 
-        cv::Mat image =
-            cv::imread(path, cv::IMREAD_GRAYSCALE);
+        cv::Mat img = cv::imread(file, cv::IMREAD_GRAYSCALE);
 
-        if (image.empty())
+        if (img.empty())
         {
-            std::cout << "Could not load template: "
-                      << path << std::endl;
+            std::cerr << "Missing template: " << file << std::endl;
             continue;
         }
 
-        /*
-            Ensure template is binary.
-        */
-        cv::threshold(
-            image,
-            image,
-            128,
-            255,
-            cv::THRESH_BINARY);
+        // Normalize to fixed size for matching
+        cv::resize(img, img, cv::Size(32, 32));
 
-        templates[c] = image;
+        templates[c] = img;
     }
 }
 
-/*
-    Normalize character image.
-*/
-cv::Mat TextRecognition::preprocessCharacter(
-    const cv::Mat &character)
+cv::Mat TextRecognition::preprocessCharacter(const cv::Mat &character)
 {
-    cv::Mat resized;
+    cv::Mat gray;
 
-    cv::resize(
-        character,
-        resized,
-        cv::Size(32, 32));
+    if (character.channels() == 3)
+    {
+        cv::cvtColor(character, gray, cv::COLOR_BGR2GRAY);
+    }
+    else
+    {
+        gray = character.clone();
+    }
+
+    cv::Mat resized;
+    cv::resize(gray, resized, cv::Size(32, 32));
+
+    cv::GaussianBlur(resized, resized, cv::Size(3, 3), 0);
 
     cv::threshold(
         resized,
         resized,
-        128,
+        0,
         255,
-        cv::THRESH_BINARY);
+        cv::THRESH_BINARY | cv::THRESH_OTSU
+    );
+
+    // Ensure same polarity as templates (important!)
+    int whitePixels = cv::countNonZero(resized);
+
+    if (whitePixels > (32 * 32) / 2)
+    {
+        cv::bitwise_not(resized, resized);
+    }
 
     return resized;
 }
 
-/*
-    Recognize a single character using template matching.
-*/
-char TextRecognition::recognizeCharacter(
-    const cv::Mat &character)
+char TextRecognition::recognizeCharacter(const cv::Mat &character)
 {
-    cv::Mat normalized =
-        preprocessCharacter(character);
+    cv::Mat input = preprocessCharacter(character);
 
-    char bestMatch = '?';
-
-    double bestScore = 1e12;
+    char bestChar = '?';
+    double bestScore = -1.0;
 
     for (const auto &pair : templates)
     {
-        char label = pair.first;
+        char templateChar = pair.first;
+        cv::Mat templ = pair.second;
 
-        cv::Mat templ =
-            preprocessCharacter(pair.second);
+        cv::Mat result;
 
-        /*
-            Compute pixel difference.
-        */
-        cv::Mat diff;
+        cv::matchTemplate(input, templ, result, cv::TM_CCOEFF_NORMED);
 
-        cv::absdiff(normalized, templ, diff);
+        double minVal, maxVal;
+        cv::minMaxLoc(result, &minVal, &maxVal);
 
-        double score =
-            cv::sum(diff)[0];
-
-        if (score < bestScore)
+        if (maxVal > bestScore)
         {
-            bestScore = score;
-            bestMatch = label;
+            bestScore = maxVal;
+            bestChar = templateChar;
         }
     }
 
-    return bestMatch;
+    return bestChar;
 }
 
-/*
-    Recognize full license plate.
-*/
 std::string TextRecognition::recognizePlate(
     const std::vector<cv::Mat> &characters)
 {
     std::string result;
 
-    for (const auto &character : characters)
+    for (const auto &ch : characters)
     {
-        char recognized =
-            recognizeCharacter(character);
-
-        result += recognized;
+        char recognized = recognizeCharacter(ch);
+        result.push_back(recognized);
     }
 
     return result;

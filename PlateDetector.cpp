@@ -9,10 +9,9 @@
 using namespace cv;
 
 bool PlateDetector::detectBestPlate(
-    const Mat& input,
-    RotatedRect& bestPlate,
-    Mat& extractedPlate
-)
+    const Mat &input,
+    RotatedRect &bestPlate,
+    Mat &extractedPlate)
 {
     Mat gray = preprocessImage(input);
     Mat edges = detectEdges(gray);
@@ -24,7 +23,7 @@ bool PlateDetector::detectBestPlate(
     double bestScore = 0.0;
     bool foundPlate = false;
 
-    for (const auto& contour : contours)
+    for (const auto &contour : contours)
     {
         if (!isLicensePlateCandidate(contour, input))
         {
@@ -50,7 +49,7 @@ bool PlateDetector::detectBestPlate(
     return foundPlate;
 }
 
-Mat PlateDetector::preprocessImage(const Mat& input)
+Mat PlateDetector::preprocessImage(const Mat &input)
 {
     Mat gray;
 
@@ -61,7 +60,7 @@ Mat PlateDetector::preprocessImage(const Mat& input)
     return gray;
 }
 
-Mat PlateDetector::detectEdges(const Mat& gray)
+Mat PlateDetector::detectEdges(const Mat &gray)
 {
     Mat edges;
 
@@ -70,7 +69,7 @@ Mat PlateDetector::detectEdges(const Mat& gray)
     return edges;
 }
 
-Mat PlateDetector::strengthenPlateRegions(const Mat& edges)
+Mat PlateDetector::strengthenPlateRegions(const Mat &edges)
 {
     Mat strengthened;
 
@@ -82,9 +81,8 @@ Mat PlateDetector::strengthenPlateRegions(const Mat& edges)
 }
 
 bool PlateDetector::isLicensePlateCandidate(
-    const std::vector<Point>& contour,
-    const Mat& image
-)
+    const std::vector<Point> &contour,
+    const Mat &image)
 {
     double area = contourArea(contour);
 
@@ -135,10 +133,9 @@ bool PlateDetector::isLicensePlateCandidate(
 }
 
 double PlateDetector::scoreCandidate(
-    const RotatedRect& candidate,
-    const Mat& edges,
-    const Mat& image
-)
+    const RotatedRect &candidate,
+    const Mat &edges,
+    const Mat &image)
 {
     float width = candidate.size.width;
     float height = candidate.size.height;
@@ -209,7 +206,7 @@ double PlateDetector::scoreCandidate(
     return finalScore;
 }
 
-void PlateDetector::drawBestPlate(Mat& image, const RotatedRect& plate)
+void PlateDetector::drawBestPlate(Mat &image, const RotatedRect &plate)
 {
     Point2f vertices[4];
     plate.points(vertices);
@@ -221,15 +218,13 @@ void PlateDetector::drawBestPlate(Mat& image, const RotatedRect& plate)
             vertices[i],
             vertices[(i + 1) % 4],
             Scalar(0, 255, 0),
-            3
-        );
+            3);
     }
 }
 
 Mat PlateDetector::extractPlateRegion(
-    const Mat& input,
-    const RotatedRect& plate
-)
+    const Mat &input,
+    const RotatedRect &plate)
 {
     Point2f points[4];
     Point2f ordered[4];
@@ -264,16 +259,14 @@ Mat PlateDetector::extractPlateRegion(
         input,
         warped,
         transform,
-        Size(static_cast<int>(maxWidth), static_cast<int>(maxHeight))
-    );
+        Size(static_cast<int>(maxWidth), static_cast<int>(maxHeight)));
 
     return warped;
 }
 
 void PlateDetector::orderPoints(
     Point2f points[4],
-    Point2f ordered[4]
-)
+    Point2f ordered[4])
 {
     // ordered[0] = top-left
     // ordered[1] = top-right
