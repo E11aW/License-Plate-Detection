@@ -1,30 +1,32 @@
-#ifndef TEXTRECOGNITION_H
-#define TEXTRECOGNITION_H
+#ifndef TEXT_RECOGNITION_H
+#define TEXT_RECOGNITION_H
 
-#include <opencv2/opencv.hpp>
-
-#include <string>
+#include <opencv2/core.hpp>
+#include <opencv2/ml.hpp>
+#include <opencv2/objdetect.hpp>
 #include <vector>
-#include <map>
+#include <string>
+#include <iostream>
 
 class TextRecognition
 {
 public:
     TextRecognition();
 
-    std::string recognizePlate(
-        const std::vector<cv::Mat> &characters);
+    std::string recognizePlate(const std::vector<cv::Mat> &characterImages);
 
 private:
-    std::map<char, cv::Mat> templates;
+    cv::Ptr<cv::ml::SVM> svm;
 
-    void loadTemplates();
+    cv::HOGDescriptor hog;
 
-    cv::Mat preprocessCharacter(
-        const cv::Mat &character);
+    std::string labels;
 
-    char recognizeCharacter(
-        const cv::Mat &character);
+    void trainSVMFromTemplates();
+
+    cv::Mat computeHOG(const cv::Mat &img);
+
+    char predictCharacter(const cv::Mat &character);
 };
 
 #endif

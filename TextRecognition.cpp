@@ -1,124 +1,159 @@
 #include "TextRecognition.h"
+
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/objdetect.hpp>
+#include <opencv2/ml.hpp>
+
 #include <iostream>
-#include <filesystem>
 
 TextRecognition::TextRecognition()
 {
-    loadTemplates();
+    labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+    hog = cv::HOGDescriptor(
+        cv::Size(32, 32),
+        cv::Size(16, 16),
+        cv::Size(8, 8),
+        cv::Size(8, 8),
+        9);
+
+    svm = cv::ml::SVM::create();
+    svm->setType(cv::ml::SVM::C_SVC);
+    svm->setKernel(cv::ml::SVM::LINEAR);
+    svm->setC(1.0);
+    svm->setTermCriteria(cv::TermCriteria(
+        cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS,
+        1000,
+        1e-6));
+
+    trainSVMFromTemplates();
 }
 
-void TextRecognition::loadTemplates()
+cv::Mat TextRecognition::computeHOG(const cv::Mat &img)
 {
-    std::string path = "templates/";
+    if (img.empty())
+        return cv::Mat();
 
-    std::string chars =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    cv::Mat gray;
 
-    for (char c : chars)
+    if (img.channels() == 3)
+        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = img.clone();
+
+    // normalize contrast (IMPORTANT)
+    cv::normalize(gray, gray, 0, 255, cv::NORM_MINMAX);
+
+    cv::Mat resized;
+    cv::resize(gray, resized, cv::Size(32, 32));
+
+    // enforce correct type
+    resized.convertTo(resized, CV_8U);
+
+    std::vector<float> descriptors;
+    hog.compute(resized, descriptors);
+
+    return cv::Mat(descriptors).reshape(1, 1);
+}
+
+void augmentImage(const cv::Mat &src, std::vector<cv::Mat> &out)
+{
+    out.push_back(src);
+
+    cv::Mat tmp;
+
+    // 1. slight blur
+    cv::GaussianBlur(src, tmp, cv::Size(3, 3), 0);
+    out.push_back(tmp);
+
+    // 2. dilation
+    cv::dilate(src, tmp, cv::getStructuringElement(cv::MORPH_RECT, {2, 2}));
+    out.push_back(tmp);
+
+    // 3. erosion
+    cv::erode(src, tmp, cv::getStructuringElement(cv::MORPH_RECT, {2, 2}));
+    out.push_back(tmp);
+
+    // 4. slight threshold variation
+    cv::threshold(src, tmp, 100, 255, cv::THRESH_BINARY);
+    out.push_back(tmp);
+}
+
+void TextRecognition::trainSVMFromTemplates()
+{
+    std::vector<cv::Mat> trainingData;
+    std::vector<int> labelsVec;
+
+    std::string basePath = "templates/";
+
+    for (size_t i = 0; i < labels.size(); i++)
     {
-        std::string file = path + std::string(1, c) + ".png";
+        std::string path = basePath + labels[i] + ".png";
 
-        cv::Mat img = cv::imread(file, cv::IMREAD_GRAYSCALE);
+        cv::Mat base = cv::imread(path, cv::IMREAD_GRAYSCALE);
 
-        if (img.empty())
+        if (base.empty())
         {
             continue;
         }
 
-        templates[c] = preprocessCharacter(img);
-    }
-}
+        std::vector<cv::Mat> augmented;
+        augmentImage(base, augmented);
 
-cv::Mat TextRecognition::preprocessCharacter(const cv::Mat &character)
-{
-    cv::Mat gray;
-    if (character.channels() == 3)
-        cv::cvtColor(character, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = character.clone();
-
-    cv::Mat bin;
-    cv::threshold(gray, bin, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-
-    cv::bitwise_not(bin, bin);
-
-    // Crop to bounding box of ink
-    cv::Mat points;
-    if (points.total() == 0)
-    {
-        return cv::Mat::zeros(32, 32, CV_8UC1);
-    }
-    cv::Rect bbox = cv::boundingRect(points);
-
-    cv::Mat cropped = bin(bbox);
-
-    // Pad to square
-    int size = std::max(cropped.cols, cropped.rows);
-    cv::Mat square = cv::Mat::zeros(size, size, CV_8UC1);
-
-    cropped.copyTo(square(cv::Rect(
-        (size - cropped.cols) / 2,
-        (size - cropped.rows) / 2,
-        cropped.cols,
-        cropped.rows)));
-
-    cv::Mat resized;
-    cv::resize(square, resized, cv::Size(32, 32));
-
-    return resized;
-}
-
-char TextRecognition::recognizeCharacter(const cv::Mat &character)
-{
-    cv::Mat input = preprocessCharacter(character);
-
-    char bestChar = '?';
-    double bestScore = -1.0;
-
-    for (const auto &pair : templates)
-    {
-        char templateChar = pair.first;
-        cv::Mat templ = pair.second;
-
-        // Normalize to [0,1] for better comparison
-        input.convertTo(input, CV_32F, 1.0 / 255.0);
-        templ.convertTo(templ, CV_32F, 1.0 / 255.0);
-
-        cv::Mat result;
-
-        cv::Mat diff;
-        cv::absdiff(input, templ, diff);
-        double score = cv::sum(diff)[0];
-
-        if (bestScore < 0 || score < bestScore)
+        for (const auto &img : augmented)
         {
-            bestScore = score;
-            bestChar = templateChar;
+            cv::Mat feature = computeHOG(img);
+
+            trainingData.push_back(feature);
+            labelsVec.push_back(i);
         }
+
+        cv::Mat feature = computeHOG(img);
+
+        trainingData.push_back(feature);
+        labelsVec.push_back(i);
     }
 
-    return bestChar;
+    cv::Mat trainMat(trainingData.size(), trainingData[0].cols, CV_32F);
+
+    for (size_t i = 0; i < trainingData.size(); i++)
+    {
+        trainingData[i].copyTo(trainMat.row(i));
+    }
+
+    cv::Mat labelMat(labelsVec, true);
+
+    svm->train(trainMat, cv::ml::ROW_SAMPLE, labelMat);
 }
 
-std::string TextRecognition::recognizePlate(const std::vector<cv::Mat> &characters)
+char TextRecognition::predictCharacter(const cv::Mat &character)
 {
-    // Sort characters left to right based on bounding box x-coordinate
-    std::vector<size_t> indices(characters.size());
+    cv::Mat feature = computeHOG(character);
 
-    std::sort(indices.begin(), indices.end(),
-              [&](size_t a, size_t b)
-              {
-                  return cv::boundingRect(characters[a]).x <
-                         cv::boundingRect(characters[b]).x;
-              });
+    float response = svm->predict(feature);
+
+    int idx = static_cast<int>(response);
+
+    if (idx >= 0 && idx < (int)labels.size())
+        return labels[idx];
+
+    return '?';
+}
+
+std::string TextRecognition::recognizePlate(
+    const std::vector<cv::Mat> &characterImages)
+{
     std::string result;
 
-    for (size_t i : indices)
+    for (const auto &img : characterImages)
     {
-        char recognized = recognizeCharacter(characters[i]);
-        result.push_back(recognized);
+        if (img.empty())
+            continue;
+
+        char c = predictCharacter(img);
+        result += c;
     }
 
     return result;
