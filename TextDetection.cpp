@@ -41,26 +41,23 @@ cv::Mat TextDetection::preprocessPlate(const cv::Mat &plateImage)
         Otsu is useful here because most US plates have
         dark characters on a lighter background.
     */
-    cv::threshold(
+    cv::adaptiveThreshold(
         blurred,
         binary,
-        0,
         255,
-        cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+        cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv::THRESH_BINARY_INV,
+        31,
+        7);
 
     /*
         Small cleanup. Do not use a large kernel here or the
         characters may merge together too much.
     */
-    cv::Mat kernel = cv::getStructuringElement(
-        cv::MORPH_RECT,
-        cv::Size(2, 2));
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
 
-    cv::morphologyEx(
-        binary,
-        binary,
-        cv::MORPH_OPEN,
-        kernel);
+    cv::erode(binary, binary, kernel, cv::Point(-1, -1), 1);
+    cv::dilate(binary, binary, kernel, cv::Point(-1, -1), 1);
 
     return binary;
 }
@@ -88,11 +85,28 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
     cv::Mat binary = preprocessPlate(plateImage);
 
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(
-        binary,
-        contours,
-        cv::RETR_EXTERNAL,
-        cv::CHAIN_APPROX_SIMPLE);
+    cv::Mat labels, stats, centroids;
+
+int n = cv::connectedComponentsWithStats(
+    binary,
+    labels,
+    stats,
+    centroids,
+    8,
+    CV_32S
+);
+
+std::vector<cv::Rect> regions;
+
+for (int i = 1; i < n; i++)
+{
+    int x = stats.at<int>(i, cv::CC_STAT_LEFT);
+    int y = stats.at<int>(i, cv::CC_STAT_TOP);
+    int w = stats.at<int>(i, cv::CC_STAT_WIDTH);
+    int h = stats.at<int>(i, cv::CC_STAT_HEIGHT);
+
+    regions.push_back(cv::Rect(x, y, w, h));
+}
 
     std::vector<cv::Rect> largeCharacterCandidates;
 
@@ -215,13 +229,7 @@ std::vector<cv::Rect> TextDetection::detectCharacterRegions(
     {
         cv::Rect boundingBox = cv::boundingRect(contour);
 
-        if (isValidCharacterRegion(
-                boundingBox,
-                binaryImage.cols,
-                binaryImage.rows))
-        {
-            characterRegions.push_back(boundingBox);
-        }
+        characterRegions.push_back(boundingBox);
     }
 
     std::sort(
@@ -229,7 +237,7 @@ std::vector<cv::Rect> TextDetection::detectCharacterRegions(
         characterRegions.end(),
         [](const cv::Rect &a, const cv::Rect &b)
         {
-            return a.x < b.x;
+            return (a.x + a.width / 2) < (b.x + b.width / 2);
         });
 
     return characterRegions;
@@ -289,15 +297,15 @@ bool TextDetection::isValidCharacterRegion(
         rect.height <= imageHeight * 0.95;
 
     bool goodWidth =
-        rect.width >= imageWidth * 0.015 &&
+        rect.width >= imageWidth * 0.005 &&
         rect.width <= imageWidth * 0.25;
 
     bool goodAspect =
-        aspectRatio >= 0.12f &&
+        aspectRatio >= 0.05f &&
         aspectRatio <= 1.25f;
 
     bool goodArea =
-        rectArea >= imageArea * 0.005 &&
+        rectArea >= imageArea * 0.001 &&
         rectArea <= imageArea * 0.30;
 
     return goodHeight &&
