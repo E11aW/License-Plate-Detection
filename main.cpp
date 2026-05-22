@@ -13,82 +13,6 @@
 
 using namespace cv;
 
-cv::Mat normalizeCharacter(const cv::Mat &character)
-{
-    /*
-        Step 1:
-        Find tight bounding box around white pixels
-    */
-
-    std::vector<std::vector<cv::Point>> contours;
-
-    cv::findContours(
-        character.clone(),
-        contours,
-        cv::RETR_LIST,
-        cv::CHAIN_APPROX_SIMPLE);
-
-    if (contours.empty())
-    {
-        return cv::Mat();
-    }
-
-    cv::Rect boundingBox =
-        cv::boundingRect(contours[0]);
-
-    for (size_t i = 1; i < contours.size(); i++)
-    {
-        boundingBox |= cv::boundingRect(contours[i]);
-    }
-
-    cv::Mat cropped =
-        character(boundingBox).clone();
-
-    /*
-        Step 2:
-        Pad to square
-    */
-
-    int size =
-        std::max(cropped.cols, cropped.rows);
-
-    cv::Mat square =
-        cv::Mat::zeros(size, size, CV_8UC1);
-
-    int x =
-        (size - cropped.cols) / 2;
-
-    int y =
-        (size - cropped.rows) / 2;
-
-    cropped.copyTo(
-        square(cv::Rect(
-            x,
-            y,
-            cropped.cols,
-            cropped.rows)));
-
-    /*
-        Step 3:
-        Resize to fixed OCR size
-    */
-
-    cv::Mat normalized;
-
-    cv::resize(square, normalized, cv::Size(32, 32), 0, 0, cv::INTER_AREA);
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
-
-    cv::threshold(
-        normalized,
-        normalized,
-        128,
-        255,
-        cv::THRESH_BINARY);
-
-    return normalized;
-}
-
-
 int main()
 {
     Mat image = imread("images/test-car.jpg");
@@ -210,29 +134,33 @@ int main()
 
     imwrite("images/detected-characters.jpg", characterDisplay);
 
-  /*
+    /*
+        -----------------------------
+        Text Recognition
+        -----------------------------
+    */
+
+    TextRecognition recognizer;
+
+    std::string recognizedPlate =
+        recognizer.recognizePlate(characterImages);
+
+    std::cout << "Recognized Plate: "
+              << recognizedPlate
+              << std::endl;
+
+    /*
         -----------------------------
         Show Segmented Characters
         -----------------------------
     */
-
-    std::string labels =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     for (size_t i = 0; i < characterImages.size(); i++)
     {
         std::string windowName =
             "Character " + std::to_string(i);
 
-        Mat normalized =
-            normalizeCharacter(characterImages[i]);
-
-        std::string outputPath =
-            "templates2/" +
-            std::string(1, labels[i]) +
-            ".png";
-
-        imwrite(outputPath, normalized);
+        imshow(windowName, characterImages[i]);
     }
 
     waitKey(0);
