@@ -26,7 +26,11 @@ private:
 
     cv::Mat computeHOG(const cv::Mat &img);
 
+    cv::Mat normalizeCharacter(const cv::Mat &src);
+
     char predictCharacter(const cv::Mat &character);
+
+    void augmentImage(const cv::Mat &src, std::vector<cv::Mat> &out);
 };
 
 #endif
