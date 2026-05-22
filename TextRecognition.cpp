@@ -6,6 +6,9 @@
 #include <opencv2/objdetect.hpp>
 #include <opencv2/ml.hpp>
 
+#include <filesystem>
+#include <algorithm>
+
 #include <iostream>
 
 TextRecognition::TextRecognition()
@@ -19,26 +22,38 @@ TextRecognition::TextRecognition()
         cv::Size(8, 8),
         9);
 
+    // Initialize SVM
     svm = cv::ml::SVM::create();
+
     svm->setType(cv::ml::SVM::C_SVC);
+
     svm->setKernel(cv::ml::SVM::RBF);
+
     svm->setGamma(0.5);
+
     svm->setC(12.5);
-    svm->setC(1.0);
-    svm->setTermCriteria(cv::TermCriteria(
-        cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS,
-        1000,
-        1e-6));
+
+    svm->setTermCriteria(
+        cv::TermCriteria(
+            cv::TermCriteria::MAX_ITER +
+                cv::TermCriteria::EPS,
+            2000,
+            1e-6));
 
     trainSVMFromTemplates();
 }
 
-cv::Mat TextRecognition::computeHOG(const cv::Mat &img)
+cv::Mat TextRecognition::computeHOG(
+    const cv::Mat &img)
 {
     if (img.empty())
         return cv::Mat();
 
-    cv::Mat normalized = normalizeCharacter(img);
+    cv::Mat normalized =
+        normalizeCharacter(img);
+
+    if (normalized.empty())
+        return cv::Mat();
 
     std::vector<float> descriptors;
 
@@ -50,7 +65,7 @@ cv::Mat TextRecognition::computeHOG(const cv::Mat &img)
 
     feature.convertTo(feature, CV_32F);
 
-    return feature;
+    return feature.clone();
 }
 
 cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
@@ -163,40 +178,97 @@ void TextRecognition::trainSVMFromTemplates()
 
     std::string basePath = "templates/";
 
-    for (size_t i = 0; i < labels.size(); i++)
+    for (size_t labelIdx = 0; labelIdx < labels.size(); labelIdx++)
     {
-        std::string path = basePath + labels[i] + ".png";
+        char labelChar = labels[labelIdx];
 
-        cv::Mat base = cv::imread(path, cv::IMREAD_GRAYSCALE);
+        std::string folder =
+            basePath + std::string(1, labelChar);
 
-        if (base.empty())
-            continue;
-
-        std::vector<cv::Mat> augmented;
-        augmentImage(base, augmented);
-
-        for (const auto &img : augmented)
+        if (!std::filesystem::exists(folder))
         {
+            std::cout << "Missing folder: "
+                      << folder
+                      << std::endl;
+
+            continue;
+        }
+
+        std::vector<std::string> imagePaths;
+
+        for (const auto &entry :
+             std::filesystem::directory_iterator(folder))
+        {
+            if (!entry.is_regular_file())
+                continue;
+
+            imagePaths.push_back(entry.path().string());
+        }
+
+        std::sort(imagePaths.begin(), imagePaths.end());
+
+        std::cout << "Loading "
+                  << imagePaths.size()
+                  << " templates for "
+                  << labelChar
+                  << std::endl;
+
+        for (const auto &path : imagePaths)
+        {
+            cv::Mat img =
+                cv::imread(path, cv::IMREAD_GRAYSCALE);
+
+            if (img.empty())
+                continue;
+
             cv::Mat feature = computeHOG(img);
 
+            if (feature.empty())
+                continue;
+
             trainingData.push_back(feature);
-            labelsVec.push_back((int)i);
+            labelsVec.push_back((int)labelIdx);
         }
     }
 
+    if (trainingData.empty())
+    {
+        std::cout << "ERROR: No training data loaded."
+                  << std::endl;
+        return;
+    }
+
+    int featureSize = trainingData[0].cols;
+
     cv::Mat trainMat(
         (int)trainingData.size(),
-        trainingData[0].cols,
+        featureSize,
         CV_32F);
 
     for (size_t i = 0; i < trainingData.size(); i++)
     {
-        trainingData[i].copyTo(trainMat.row((int)i));
+        trainingData[i].copyTo(
+            trainMat.row((int)i));
     }
 
     cv::Mat labelMat(labelsVec);
 
-    svm->train(trainMat, cv::ml::ROW_SAMPLE, labelMat);
+    std::cout << std::endl;
+    std::cout << "Training SVM..." << std::endl;
+    std::cout << "Samples: "
+              << trainMat.rows
+              << std::endl;
+    std::cout << "Features: "
+              << trainMat.cols
+              << std::endl;
+
+    svm->train(
+        trainMat,
+        cv::ml::ROW_SAMPLE,
+        labelMat);
+
+    std::cout << "SVM training complete."
+              << std::endl;
 }
 
 char TextRecognition::predictCharacter(const cv::Mat &character)
