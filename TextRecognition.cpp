@@ -343,7 +343,11 @@ char TextRecognition::predictCharacter(const cv::Mat &character)
 {
     cv::Mat feature = computeHOG(character);
 
-    float response = svm->predict(feature);
+    float response =
+        svm->predict(
+            feature,
+            cv::noArray(),
+            cv::ml::StatModel::RAW_OUTPUT);
 
     int idx = static_cast<int>(response);
 
