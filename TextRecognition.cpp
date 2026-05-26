@@ -85,10 +85,27 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         255,
         cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-    /*
-    Determine polarity using border pixels
-    */
+    // Stabilize character strokes
+    cv::morphologyEx(
+        gray,
+        gray,
+        cv::MORPH_CLOSE,
+        cv::getStructuringElement(
+            cv::MORPH_RECT,
+            cv::Size(3, 3)));
 
+    // Add border to prevent clipping
+    cv::copyMakeBorder(
+        gray,
+        gray,
+        4,
+        4,
+        4,
+        4,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0));
+
+    // Determine polarity using border pixels
     int borderWhite = 0;
 
     for (int x = 0; x < gray.cols; x++)
