@@ -16,7 +16,7 @@ TextRecognition::TextRecognition()
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     hog = cv::HOGDescriptor(
-        cv::Size(32, 32),
+        cv::Size(48, 48),
         cv::Size(16, 16),
         cv::Size(8, 8),
         cv::Size(8, 8),
@@ -27,11 +27,9 @@ TextRecognition::TextRecognition()
 
     svm->setType(cv::ml::SVM::C_SVC);
 
-    svm->setKernel(cv::ml::SVM::RBF);
+    svm->setKernel(cv::ml::SVM::LINEAR);
 
-    svm->setGamma(0.5);
-
-    svm->setC(12.5);
+    svm->setC(2.0);
 
     svm->setTermCriteria(
         cv::TermCriteria(
@@ -139,6 +137,30 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         cv::bitwise_not(gray, gray);
     }
 
+    /*
+    Deskew character using image moments
+*/
+
+    cv::Moments m = cv::moments(gray, true);
+
+    if (std::abs(m.mu02) > 1e-2)
+    {
+        double skew = m.mu11 / m.mu02;
+
+        cv::Mat warpMat =
+            (cv::Mat_<float>(2, 3)
+                 << 1,
+             skew, -0.5f * gray.rows * skew,
+             0, 1, 0);
+
+        cv::warpAffine(
+            gray,
+            gray,
+            warpMat,
+            gray.size(),
+            cv::WARP_INVERSE_MAP | cv::INTER_LINEAR);
+    }
+
     // Find tight bounding box
     std::vector<cv::Point> points;
     cv::findNonZero(gray, points);
@@ -151,7 +173,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
     cv::Mat roi = gray(box);
 
     // Preserve aspect ratio
-    int target = 24;
+    int target = 36;
 
     float scale = std::min(
         target / (float)roi.cols,
@@ -164,10 +186,10 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
     cv::resize(roi, resized, cv::Size(newW, newH));
 
     // Center into 32x32
-    cv::Mat output = cv::Mat::zeros(32, 32, CV_8U);
+    cv::Mat output = cv::Mat::zeros(48, 48, CV_8U);
 
-    int x = (32 - newW) / 2;
-    int y = (32 - newH) / 2;
+    int x = (48 - newW) / 2;
+    int y = (48 - newH) / 2;
 
     resized.copyTo(output(cv::Rect(x, y, newW, newH)));
 
