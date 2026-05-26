@@ -85,10 +85,39 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         255,
         cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-    // Ensure WHITE foreground on BLACK background
-    int whitePixels = cv::countNonZero(gray);
+    /*
+    Determine polarity using border pixels
+    */
 
-    if (whitePixels > gray.total() / 2)
+    int borderWhite = 0;
+
+    for (int x = 0; x < gray.cols; x++)
+    {
+        if (gray.at<uchar>(0, x) > 0)
+            borderWhite++;
+
+        if (gray.at<uchar>(gray.rows - 1, x) > 0)
+            borderWhite++;
+    }
+
+    for (int y = 0; y < gray.rows; y++)
+    {
+        if (gray.at<uchar>(y, 0) > 0)
+            borderWhite++;
+
+        if (gray.at<uchar>(y, gray.cols - 1) > 0)
+            borderWhite++;
+    }
+
+    /*
+        If border is mostly white, invert image
+    */
+
+    int borderPixels =
+        gray.cols * 2 +
+        gray.rows * 2;
+
+    if (borderWhite > borderPixels / 2)
     {
         cv::bitwise_not(gray, gray);
     }
@@ -297,6 +326,16 @@ std::string TextRecognition::recognizePlate(
 
         char c = predictCharacter(img);
         result += c;
+
+        static int counter = 0;
+
+        cv::imwrite(
+            "realchars/" +
+                std::to_string(counter++) +
+                "_" +
+                c +
+                ".png",
+            normalizeCharacter(img));
     }
 
     return result;
