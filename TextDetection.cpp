@@ -127,9 +127,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
             area >= plateArea * 0.002 &&
             area <= plateArea * 0.20;
 
-        /*
-            Ignore contours that are mostly on the extreme border.
-        */
+        // Ignore contours that are mostly on the extreme border.
         bool notBorder =
             box.x > 1 &&
             box.y > 1 &&
@@ -170,9 +168,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
         return plateImage(fallback).clone();
     }
 
-    /*
-        Merge all main character boxes into one text-band box.
-    */
+    // Merge all main character boxes into one text-band box
     cv::Rect textBox = largeCharacterCandidates[0];
 
     for (size_t i = 1; i < largeCharacterCandidates.size(); i++)
@@ -180,9 +176,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
         textBox = textBox | largeCharacterCandidates[i];
     }
 
-    /*
-        Add padding so the crop does not cut off character edges.
-    */
+    // Add padding so the crop does not cut off character edges
     int padX = static_cast<int>(plateWidth * 0.04);
     int padY = static_cast<int>(plateHeight * 0.08);
 
@@ -196,9 +190,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
     return plateImage(textBox).clone();
 }
 
-/*
-    Detect possible character regions using contours.
-*/
+// Detect possible character regions using contours
 std::vector<cv::Rect> TextDetection::detectCharacterRegions(
     const cv::Mat &binaryImage)
 {
@@ -235,9 +227,7 @@ std::vector<cv::Rect> TextDetection::detectCharacterRegions(
     return characterRegions;
 }
 
-/*
-    Crop segmented character images.
-*/
+// Crop segmented character images
 std::vector<cv::Mat> TextDetection::segmentCharacters(
     const cv::Mat &binaryImage,
     const std::vector<cv::Rect> &regions)

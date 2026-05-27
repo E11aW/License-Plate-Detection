@@ -124,10 +124,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
             borderWhite++;
     }
 
-    /*
-        If border is mostly white, invert image
-    */
-
+    // If border is mostly white, invert image
     int borderPixels =
         gray.cols * 2 +
         gray.rows * 2;
@@ -137,10 +134,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         cv::bitwise_not(gray, gray);
     }
 
-    /*
-    Deskew character using image moments
-*/
-
+    // Deskew character using image moments
     cv::Moments m = cv::moments(gray, true);
 
     if (std::abs(m.mu02) > 1e-2)
