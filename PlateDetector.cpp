@@ -10,9 +10,10 @@
 using namespace cv;
 
 bool PlateDetector::detectBestPlate(
-    const Mat &input,
-    RotatedRect &bestPlate,
-    Mat &extractedPlate)
+    const Mat& input,
+    RotatedRect& bestPlate,
+    Mat& extractedPlate
+)
 {
     Mat gray = preprocessImage(input);
 
@@ -46,12 +47,29 @@ bool PlateDetector::detectBestPlate(
     double bestScore = 0.0;
     bool foundPlate = false;
 
-    for (const auto& contour : contours)
+    for (const Mat& edges : edgeImages)
     {
-        if (!isLicensePlateCandidate(contour, input))
+        for (const Size& kernelSize : kernelSizes)
         {
-            continue;
-        }
+            Mat strengthened = strengthenPlateRegions(edges, kernelSize);
+
+            std::vector<std::vector<Point>> contours;
+
+            findContours(
+                strengthened.clone(),
+                contours,
+                RETR_EXTERNAL,
+                CHAIN_APPROX_SIMPLE
+            );
+
+            for (const auto& contour : contours)
+            {
+                RotatedRect candidate = minAreaRect(contour);
+
+                if (!isLicensePlateCandidate(contour, candidate, input))
+                {
+                    continue;
+                }
 
                 double score = scoreCandidate(
                     contour,
@@ -82,7 +100,7 @@ bool PlateDetector::detectBestPlate(
     return foundPlate;
 }
 
-Mat PlateDetector::preprocessImage(const Mat &input)
+Mat PlateDetector::preprocessImage(const Mat& input)
 {
     Mat gray;
     Mat equalized;
@@ -101,7 +119,7 @@ Mat PlateDetector::preprocessImage(const Mat &input)
     return blurred;
 }
 
-Mat PlateDetector::detectEdges(const Mat &gray)
+Mat PlateDetector::detectEdges(const Mat& gray)
 {
     Mat edges;
 
@@ -158,7 +176,10 @@ Mat PlateDetector::detectBlackhatEdges(const Mat& gray)
     return edges;
 }
 
-Mat PlateDetector::strengthenPlateRegions(const Mat& edges)
+Mat PlateDetector::strengthenPlateRegions(
+    const Mat& edges,
+    const Size& kernelSize
+)
 {
     Mat strengthened;
 
@@ -196,6 +217,7 @@ Mat PlateDetector::strengthenPlateRegions(const Mat& edges)
 
 bool PlateDetector::isLicensePlateCandidate(
     const std::vector<Point>& contour,
+    const RotatedRect& candidate,
     const Mat& image
 )
 {
@@ -271,6 +293,7 @@ bool PlateDetector::isLicensePlateCandidate(
 }
 
 double PlateDetector::scoreCandidate(
+    const std::vector<Point>& contour,
     const RotatedRect& candidate,
     const Mat& edges,
     const Mat& image
@@ -553,7 +576,7 @@ double PlateDetector::scorePlateLocation(
     return centerXScore * yScore;
 }
 
-void PlateDetector::drawBestPlate(Mat &image, const RotatedRect &plate)
+void PlateDetector::drawBestPlate(Mat& image, const RotatedRect& plate)
 {
     Point2f vertices[4];
     plate.points(vertices);
@@ -565,13 +588,15 @@ void PlateDetector::drawBestPlate(Mat &image, const RotatedRect &plate)
             vertices[i],
             vertices[(i + 1) % 4],
             Scalar(0, 255, 0),
-            3);
+            3
+        );
     }
 }
 
 Mat PlateDetector::extractPlateRegion(
-    const Mat &input,
-    const RotatedRect &plate)
+    const Mat& input,
+    const RotatedRect& plate
+)
 {
     Point2f points[4];
     Point2f ordered[4];
@@ -618,15 +643,29 @@ Mat PlateDetector::extractPlateRegion(
         input,
         warped,
         transform,
-        Size(static_cast<int>(maxWidth), static_cast<int>(maxHeight))
+        Size(
+            static_cast<int>(maxWidth),
+            static_cast<int>(maxHeight)
+        )
     );
+
+    /*
+        Safety correction:
+        if the crop comes out vertical, rotate it so the plate
+        is easier for the text detector to process.
+    */
+    if (!warped.empty() && warped.rows > warped.cols)
+    {
+        rotate(warped, warped, ROTATE_90_CLOCKWISE);
+    }
 
     return warped;
 }
 
 void PlateDetector::orderPoints(
     Point2f points[4],
-    Point2f ordered[4])
+    Point2f ordered[4]
+)
 {
     /*
         ordered[0] = top-left
