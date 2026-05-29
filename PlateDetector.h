@@ -18,16 +18,35 @@ public:
 private:
     cv::Mat preprocessImage(const cv::Mat& input);
     cv::Mat detectEdges(const cv::Mat& gray);
-    cv::Mat strengthenPlateRegions(const cv::Mat& edges);
+    cv::Mat detectBlackhatEdges(const cv::Mat& gray);
+    cv::Mat strengthenPlateRegions(const cv::Mat& edges, const cv::Size& kernelSize);
 
     bool isLicensePlateCandidate(
         const std::vector<cv::Point>& contour,
+        const cv::RotatedRect& candidate,
         const cv::Mat& image
     );
 
     double scoreCandidate(
+        const std::vector<cv::Point>& contour,
         const cv::RotatedRect& candidate,
         const cv::Mat& edges,
+        const cv::Mat& image
+    );
+
+    double scoreCharacterLikeContent(
+        const cv::RotatedRect& candidate,
+        const cv::Mat& edges,
+        const cv::Mat& image
+    );
+
+    double scoreBorderPenalty(
+        const cv::Rect& boundingBox,
+        const cv::Mat& image
+    );
+
+    double scorePlateLocation(
+        const cv::RotatedRect& candidate,
         const cv::Mat& image
     );
 
