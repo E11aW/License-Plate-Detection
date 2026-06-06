@@ -1,3 +1,16 @@
+/*
+    File contents:
+    This file defines the PlateDetector class.
+    The class preprocesses a vehicle image, detects possible rectangular
+    plate regions, scores each candidate, and extracts the best plate region.
+
+    Assumptions:
+    Input images are valid OpenCV color images.
+    License plates are wider than they are tall.
+    The best candidate should contain rectangular shape information and
+    character like edge content.
+*/
+
 #include "PlateDetector.h"
 
 #include <opencv2/imgproc.hpp>
@@ -9,6 +22,19 @@
 
 using namespace cv;
 
+/*
+    Function purpose:
+    Find and extract the best license plate candidate from the input image.
+
+    Preconditions:
+    input must contain a valid color image.
+    bestPlate and extractedPlate must be valid output variables.
+
+    Postconditions:
+    Returns true when a candidate is found.
+    bestPlate stores the best rotated rectangle.
+    extractedPlate stores the perspective corrected plate image.
+*/
 bool PlateDetector::detectBestPlate(
     const Mat& input,
     RotatedRect& bestPlate,
@@ -18,24 +44,17 @@ bool PlateDetector::detectBestPlate(
     Mat gray = preprocessImage(input);
 
     /*
-        Use multiple edge-generation strategies.
-
-        Normal Canny:
-        - Good for plate borders and car body edges.
-
-        Blackhat Canny:
-        - Good for dark plate characters on a lighter plate background.
+        Use two edge generation strategies. Normal Canny highlights plate
+        borders and car body edges. Blackhat Canny helps highlight dark
+        characters on a lighter plate background.
     */
     std::vector<Mat> edgeImages;
     edgeImages.push_back(detectEdges(gray));
     edgeImages.push_back(detectBlackhatEdges(gray));
 
     /*
-        Try multiple morphology kernels.
-
-        This helps with different image sizes:
-        - small/far plates need smaller kernels
-        - close-up plates can use larger kernels
+        Try multiple morphology kernels so the detector works on small
+        distant plates and larger close plate regions.
     */
     std::vector<Size> kernelSizes = {
         Size(13, 3),
@@ -100,6 +119,16 @@ bool PlateDetector::detectBestPlate(
     return foundPlate;
 }
 
+/*
+    Function purpose:
+    Convert the input image to grayscale, improve contrast, and blur noise.
+
+    Preconditions:
+    input must contain a valid color image.
+
+    Postconditions:
+    Returns a smoothed grayscale image for edge detection.
+*/
 Mat PlateDetector::preprocessImage(const Mat& input)
 {
     Mat gray;
@@ -119,6 +148,16 @@ Mat PlateDetector::preprocessImage(const Mat& input)
     return blurred;
 }
 
+/*
+    Function purpose:
+    Detect strong edges in a grayscale image using Canny edge detection.
+
+    Preconditions:
+    gray must contain a valid grayscale image.
+
+    Postconditions:
+    Returns a binary edge image.
+*/
 Mat PlateDetector::detectEdges(const Mat& gray)
 {
     Mat edges;
@@ -128,6 +167,16 @@ Mat PlateDetector::detectEdges(const Mat& gray)
     return edges;
 }
 
+/*
+    Function purpose:
+    Emphasize dark text on light plate backgrounds and detect edges.
+
+    Preconditions:
+    gray must contain a valid grayscale image.
+
+    Postconditions:
+    Returns a binary edge image based on blackhat preprocessing.
+*/
 Mat PlateDetector::detectBlackhatEdges(const Mat& gray)
 {
     Mat blackhat;
@@ -176,6 +225,17 @@ Mat PlateDetector::detectBlackhatEdges(const Mat& gray)
     return edges;
 }
 
+/*
+    Function purpose:
+    Connect nearby edge components into stronger plate shaped regions.
+
+    Preconditions:
+    edges must contain a valid edge image.
+    kernelSize must contain positive dimensions.
+
+    Postconditions:
+    Returns a morphed binary image for contour detection.
+*/
 Mat PlateDetector::strengthenPlateRegions(
     const Mat& edges,
     const Size& kernelSize
@@ -215,6 +275,17 @@ Mat PlateDetector::strengthenPlateRegions(
     return strengthened;
 }
 
+/*
+    Function purpose:
+    Reject contours that do not match basic license plate size and shape rules.
+
+    Preconditions:
+    contour and candidate must describe the same detected region.
+    image must contain the original input image.
+
+    Postconditions:
+    Returns true when the candidate passes the first filtering stage.
+*/
 bool PlateDetector::isLicensePlateCandidate(
     const std::vector<Point>& contour,
     const RotatedRect& candidate,
@@ -269,7 +340,7 @@ bool PlateDetector::isLicensePlateCandidate(
 
     /*
         Relative dimension filters help reject tiny logos,
-        headlights, bumpers, and very large car-body regions.
+        headlights, bumpers, and very large car body regions.
     */
     double relativeWidth =
         static_cast<double>(boundingBox.width) /
@@ -292,6 +363,16 @@ bool PlateDetector::isLicensePlateCandidate(
     return true;
 }
 
+/*
+    Function purpose:
+    Compute a weighted score for a possible plate candidate.
+
+    Preconditions:
+    contour, candidate, edges, and image must all come from the same source image.
+
+    Postconditions:
+    Returns a numeric score where higher values are better candidates.
+*/
 double PlateDetector::scoreCandidate(
     const std::vector<Point>& contour,
     const RotatedRect& candidate,
@@ -337,9 +418,8 @@ double PlateDetector::scoreCandidate(
         static_cast<double>(boundingBox.area());
 
     /*
-        Area score:
-        - tiny candidates are suspicious
-        - huge candidates are suspicious
+        Score the candidate area. Very small regions and very large regions
+        are less likely to be the actual license plate.
     */
     double area = static_cast<double>(boundingBox.area());
     double imageArea = static_cast<double>(image.rows * image.cols);
@@ -359,9 +439,8 @@ double PlateDetector::scoreCandidate(
     areaScore = std::max(0.0, std::min(1.0, areaScore));
 
     /*
-        Angle score:
-        - most plates are close to horizontal
-        - angled plates are still allowed, just ranked lower
+        Score the candidate angle. Most plates are close to horizontal,
+        but angled plates are still allowed with a lower score.
     */
     double angle = std::abs(candidate.angle);
 
@@ -374,9 +453,8 @@ double PlateDetector::scoreCandidate(
         1.0 / (1.0 + angle / 20.0);
 
     /*
-        Rectangularity:
-        - compares actual contour area to rotated rectangle area
-        - helps reject jagged or sparse false positives
+        Score rectangularity by comparing the contour area to the rotated
+        rectangle area. This helps reject jagged or sparse false positives.
     */
     double rotatedBoxArea =
         static_cast<double>(candidate.size.width) *
@@ -394,9 +472,8 @@ double PlateDetector::scoreCandidate(
     }
 
     /*
-        Character-like score:
-        - checks whether the candidate contains multiple tall,
-          narrow components similar to plate letters/numbers.
+        Score whether the candidate contains multiple tall and narrow
+        components that resemble plate letters and numbers.
     */
     double characterScore =
         scoreCharacterLikeContent(candidate, edges, image);
@@ -421,6 +498,17 @@ double PlateDetector::scoreCandidate(
     return finalScore;
 }
 
+/*
+    Function purpose:
+    Score the amount of character like content inside a candidate box.
+
+    Preconditions:
+    candidate must be a possible plate region.
+    edges must correspond to the original image.
+
+    Postconditions:
+    Returns a score from zero to one.
+*/
 double PlateDetector::scoreCharacterLikeContent(
     const RotatedRect& candidate,
     const Mat& edges,
@@ -490,7 +578,7 @@ double PlateDetector::scoreCharacterLikeContent(
     }
 
     /*
-        US plates commonly have around 5-8 large characters.
+        US plates commonly have around 5 to 8 large characters.
         We do not require exactly that because some contours merge
         and some states have separators.
     */
@@ -512,6 +600,17 @@ double PlateDetector::scoreCharacterLikeContent(
     return static_cast<double>(characterLikeCount) / 5.0;
 }
 
+/*
+    Function purpose:
+    Reduce the score of regions that touch the image border.
+
+    Preconditions:
+    boundingBox must describe a valid candidate rectangle.
+    image must contain the original input image.
+
+    Postconditions:
+    Returns a multiplier used during candidate scoring.
+*/
 double PlateDetector::scoreBorderPenalty(
     const Rect& boundingBox,
     const Mat& image
@@ -534,6 +633,17 @@ double PlateDetector::scoreBorderPenalty(
     return 1.0;
 }
 
+/*
+    Function purpose:
+    Give a soft score based on where the candidate appears in the image.
+
+    Preconditions:
+    candidate must describe a possible plate region.
+    image must contain the original input image.
+
+    Postconditions:
+    Returns a location score for the candidate.
+*/
 double PlateDetector::scorePlateLocation(
     const RotatedRect& candidate,
     const Mat& image
@@ -550,7 +660,7 @@ double PlateDetector::scorePlateLocation(
     /*
         Plates are often near the horizontal center,
         but this should only be a soft score because
-        side-angle photos can place plates off-center.
+        side angle photos can place plates off center.
     */
     double centerXScore =
         1.0 - std::abs(centerX - 0.5);
@@ -576,6 +686,17 @@ double PlateDetector::scorePlateLocation(
     return centerXScore * yScore;
 }
 
+/*
+    Function purpose:
+    Draw the detected plate outline on the image.
+
+    Preconditions:
+    image must contain a valid display image.
+    plate must contain a valid rotated rectangle.
+
+    Postconditions:
+    The image is modified with a green outline around the plate.
+*/
 void PlateDetector::drawBestPlate(Mat& image, const RotatedRect& plate)
 {
     Point2f vertices[4];
@@ -593,6 +714,17 @@ void PlateDetector::drawBestPlate(Mat& image, const RotatedRect& plate)
     }
 }
 
+/*
+    Function purpose:
+    Extract and perspective correct the detected plate region.
+
+    Preconditions:
+    input must contain the original color image.
+    plate must describe the detected plate rectangle.
+
+    Postconditions:
+    Returns a cropped plate image or an empty Mat if extraction fails.
+*/
 Mat PlateDetector::extractPlateRegion(
     const Mat& input,
     const RotatedRect& plate
@@ -662,16 +794,27 @@ Mat PlateDetector::extractPlateRegion(
     return warped;
 }
 
+/*
+    Function purpose:
+    Put four corner points into a consistent corner order.
+
+    Preconditions:
+    points must contain four rectangle corners.
+    ordered must have space for four output corners.
+
+    Postconditions:
+    ordered contains top left, top right, bottom right, and bottom left.
+*/
 void PlateDetector::orderPoints(
     Point2f points[4],
     Point2f ordered[4]
 )
 {
     /*
-        ordered[0] = top-left
-        ordered[1] = top-right
-        ordered[2] = bottom-right
-        ordered[3] = bottom-left
+        ordered[0] = top left
+        ordered[1] = top right
+        ordered[2] = bottom right
+        ordered[3] = bottom left
     */
 
     Point2f topLeft = points[0];

@@ -1,3 +1,16 @@
+/*
+    File contents:
+    This file defines the TextDetection class.
+    The class converts an extracted license plate into a binary image,
+    isolates the main text band, finds possible character regions, and
+    crops those characters for OCR.
+
+    Assumptions:
+    The input plate image has already been extracted from the vehicle image.
+    The main license plate number is larger than state text and decoration.
+    Character regions can be separated using contour based filtering.
+*/
+
 #include "TextDetection.h"
 
 #include <opencv2/imgproc.hpp>
@@ -5,20 +18,28 @@
 #include <algorithm>
 #include <iostream>
 
+/*
+    Function purpose:
+    Construct a TextDetection object.
+
+    Preconditions:
+    No input is required.
+
+    Postconditions:
+    The object is ready to process plate images.
+*/
 TextDetection::TextDetection() {}
 
 /*
-    Preprocess license plate image.
+    Function purpose:
+    Convert a plate image into a binary image for text segmentation.
 
-    Steps:
-    1. Convert to grayscale
-    2. Blur to reduce noise
-    3. Threshold so dark characters become white
-    4. Small morphology cleanup
+    Preconditions:
+    plateImage must contain a valid plate or text region image.
 
-    Output:
-    - White foreground = likely characters / dark objects
-    - Black background = plate background
+    Postconditions:
+    Returns a binary image where likely characters are white and the
+    background is black.
 */
 cv::Mat TextDetection::preprocessPlate(const cv::Mat &plateImage)
 {
@@ -66,17 +87,15 @@ cv::Mat TextDetection::preprocessPlate(const cv::Mat &plateImage)
 }
 
 /*
-    Extract only the main text band from a US license plate.
+    Function purpose:
+    Extract the main large text band from a license plate image.
 
-    This intentionally ignores:
-    - outer border
-    - state name at the bottom
-    - stickers
-    - screws
-    - small decorative graphics
+    Preconditions:
+    plateImage must contain a valid extracted license plate image.
 
-    It looks for tall character-like contours, unions them,
-    adds padding, and crops that region from the original plate.
+    Postconditions:
+    Returns a cropped text band image. If contour filtering fails, a safe
+    fallback crop from the middle of the plate is returned.
 */
 cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
 {
@@ -127,7 +146,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
             area >= plateArea * 0.002 &&
             area <= plateArea * 0.20;
 
-        // Ignore contours that are mostly on the extreme border.
+        /* Ignore contours that are mostly on the extreme border. */
         bool notBorder =
             box.x > 1 &&
             box.y > 1 &&
@@ -150,7 +169,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
     {
         /*
             Fallback:
-            US plate numbers are usually in the middle/upper-middle.
+            US plate numbers are usually in the middle or upper middle.
             This keeps the program from failing if contour filtering
             misses the characters.
         */
@@ -168,7 +187,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
         return plateImage(fallback).clone();
     }
 
-    // Merge all main character boxes into one text-band box
+    /* Merge all main character boxes into one text band box. */
     cv::Rect textBox = largeCharacterCandidates[0];
 
     for (size_t i = 1; i < largeCharacterCandidates.size(); i++)
@@ -176,7 +195,7 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
         textBox = textBox | largeCharacterCandidates[i];
     }
 
-    // Add padding so the crop does not cut off character edges
+    /* Add padding so the crop does not cut off character edges. */
     int padX = static_cast<int>(plateWidth * 0.04);
     int padY = static_cast<int>(plateHeight * 0.08);
 
@@ -190,7 +209,16 @@ cv::Mat TextDetection::extractMainTextRegion(const cv::Mat &plateImage)
     return plateImage(textBox).clone();
 }
 
-// Detect possible character regions using contours
+/*
+    Function purpose:
+    Detect possible character regions in a binary text image.
+
+    Preconditions:
+    binaryImage must contain a valid binary text image.
+
+    Postconditions:
+    Returns character bounding boxes sorted from left to right.
+*/
 std::vector<cv::Rect> TextDetection::detectCharacterRegions(
     const cv::Mat &binaryImage)
 {
@@ -227,7 +255,17 @@ std::vector<cv::Rect> TextDetection::detectCharacterRegions(
     return characterRegions;
 }
 
-// Crop segmented character images
+/*
+    Function purpose:
+    Crop each segmented character image from the binary text image.
+
+    Preconditions:
+    binaryImage must contain a valid binary image.
+    regions must contain rectangles for that same image.
+
+    Postconditions:
+    Returns a vector of cropped character images.
+*/
 std::vector<cv::Mat> TextDetection::segmentCharacters(
     const cv::Mat &binaryImage,
     const std::vector<cv::Rect> &regions)
@@ -252,10 +290,15 @@ std::vector<cv::Mat> TextDetection::segmentCharacters(
 }
 
 /*
-    Filter invalid character contours.
+    Function purpose:
+    Decide whether a contour rectangle is shaped like a plate character.
 
-    This is now relative to the image size, so it works better
-    after cropping the main text region.
+    Preconditions:
+    rect must contain a contour bounding box.
+    imageWidth and imageHeight must be positive.
+
+    Postconditions:
+    Returns true when the rectangle passes character size and shape checks.
 */
 bool TextDetection::isValidCharacterRegion(
     const cv::Rect &rect,
@@ -296,6 +339,16 @@ bool TextDetection::isValidCharacterRegion(
            goodArea;
 }
 
+/*
+    Function purpose:
+    Keep a rectangle inside the image boundaries.
+
+    Preconditions:
+    imageWidth and imageHeight must be positive.
+
+    Postconditions:
+    Returns the portion of rect that is inside the image.
+*/
 cv::Rect TextDetection::clampRect(
     const cv::Rect &rect,
     int imageWidth,

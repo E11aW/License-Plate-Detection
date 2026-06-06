@@ -1,3 +1,15 @@
+/*
+    File contents:
+    This file defines the TextRecognition class.
+    The class trains an SVM classifier from template images and recognizes
+    segmented license plate characters using HOG features.
+
+    Assumptions:
+    The templates folder exists in the working directory.
+    Template subfolders are named with the character they represent.
+    Segmented input characters are readable binary or grayscale images.
+*/
+
 #include "TextRecognition.h"
 
 #include <opencv2/imgproc.hpp>
@@ -11,6 +23,16 @@
 
 #include <iostream>
 
+/*
+    Function purpose:
+    Construct the OCR recognizer, configure HOG and SVM settings, and train the model.
+
+    Preconditions:
+    The templates folder must exist in the working directory.
+
+    Postconditions:
+    The SVM is trained when template data is loaded successfully.
+*/
 TextRecognition::TextRecognition()
 {
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -22,7 +44,7 @@ TextRecognition::TextRecognition()
         cv::Size(8, 8),
         9);
 
-    // Initialize SVM
+    /* Initialize the SVM classifier used for OCR prediction. */
     svm = cv::ml::SVM::create();
 
     svm->setType(cv::ml::SVM::C_SVC);
@@ -41,6 +63,16 @@ TextRecognition::TextRecognition()
     trainSVMFromTemplates();
 }
 
+/*
+    Function purpose:
+    Compute one row of HOG features for a character image.
+
+    Preconditions:
+    img must contain a readable character image.
+
+    Postconditions:
+    Returns a floating point feature row or an empty Mat if processing fails.
+*/
 cv::Mat TextRecognition::computeHOG(
     const cv::Mat &img)
 {
@@ -66,6 +98,16 @@ cv::Mat TextRecognition::computeHOG(
     return feature.clone();
 }
 
+/*
+    Function purpose:
+    Normalize a character crop into a centered 48 by 48 image.
+
+    Preconditions:
+    src must contain one character crop.
+
+    Postconditions:
+    Returns a normalized binary character image or an empty Mat if no foreground exists.
+*/
 cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
 {
     cv::Mat gray;
@@ -75,7 +117,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
     else
         gray = src.clone();
 
-    // Ensure binary
+    /* Convert to binary so HOG sees a consistent character shape. */
     cv::threshold(
         gray,
         gray,
@@ -83,7 +125,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         255,
         cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-    // Stabilize character strokes
+    /* Stabilize character strokes before feature extraction. */
     cv::morphologyEx(
         gray,
         gray,
@@ -92,7 +134,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
             cv::MORPH_RECT,
             cv::Size(3, 3)));
 
-    // Add border to prevent clipping
+    /* Add a border so character strokes are not clipped during normalization. */
     cv::copyMakeBorder(
         gray,
         gray,
@@ -103,7 +145,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         cv::BORDER_CONSTANT,
         cv::Scalar(0));
 
-    // Determine polarity using border pixels
+    /* Determine foreground polarity by checking border pixels. */
     int borderWhite = 0;
 
     for (int x = 0; x < gray.cols; x++)
@@ -124,7 +166,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
             borderWhite++;
     }
 
-    // If border is mostly white, invert image
+    /* Invert the image when the background appears mostly white. */
     int borderPixels =
         gray.cols * 2 +
         gray.rows * 2;
@@ -134,7 +176,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
         cv::bitwise_not(gray, gray);
     }
 
-    // Deskew character using image moments
+    /* Deskew the character using image moments. */
     cv::Moments m = cv::moments(gray, true);
 
     if (std::abs(m.mu02) > 1e-2)
@@ -155,7 +197,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
             cv::WARP_INVERSE_MAP | cv::INTER_LINEAR);
     }
 
-    // Find tight bounding box
+    /* Find the tight foreground bounding box. */
     std::vector<cv::Point> points;
     cv::findNonZero(gray, points);
 
@@ -166,7 +208,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
 
     cv::Mat roi = gray(box);
 
-    // Preserve aspect ratio
+    /* Preserve the aspect ratio while fitting into the target area. */
     int target = 36;
 
     float scale = std::min(
@@ -179,7 +221,7 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
     cv::Mat resized;
     cv::resize(roi, resized, cv::Size(newW, newH));
 
-    // Center into 32x32
+    /* Center the resized character inside a 48 by 48 image. */
     cv::Mat output = cv::Mat::zeros(48, 48, CV_8U);
 
     int x = (48 - newW) / 2;
@@ -190,6 +232,17 @@ cv::Mat TextRecognition::normalizeCharacter(const cv::Mat &src)
     return output;
 }
 
+/*
+    Function purpose:
+    Create shifted and filtered copies of a character template.
+
+    Preconditions:
+    src must contain a valid character image.
+    out must be a valid vector for storing augmented images.
+
+    Postconditions:
+    Augmented images are appended to out.
+*/
 void TextRecognition::augmentImage(const cv::Mat &src, std::vector<cv::Mat> &out)
 {
     out.push_back(src);
@@ -233,6 +286,16 @@ void TextRecognition::augmentImage(const cv::Mat &src, std::vector<cv::Mat> &out
     out.push_back(dilated);
 }
 
+/*
+    Function purpose:
+    Load template images from disk and train the SVM classifier.
+
+    Preconditions:
+    The templates folder must contain character subfolders.
+
+    Postconditions:
+    The SVM is trained when enough valid template images are found.
+*/
 void TextRecognition::trainSVMFromTemplates()
 {
     std::vector<cv::Mat> trainingData;
@@ -333,9 +396,25 @@ void TextRecognition::trainSVMFromTemplates()
               << std::endl;
 }
 
+/*
+    Function purpose:
+    Predict one segmented character with the trained SVM.
+
+    Preconditions:
+    character must contain one segmented character image.
+    The SVM should already have been trained.
+
+    Postconditions:
+    Returns a predicted character or question mark when prediction fails.
+*/
 char TextRecognition::predictCharacter(const cv::Mat &character)
 {
     cv::Mat feature = computeHOG(character);
+
+    if (feature.empty())
+    {
+        return '?';
+    }
 
     float response =
         svm->predict(
@@ -351,10 +430,23 @@ char TextRecognition::predictCharacter(const cv::Mat &character)
     return '?';
 }
 
+/*
+    Function purpose:
+    Recognize all segmented characters in left to right order.
+
+    Preconditions:
+    characterImages should contain segmented character crops.
+    The SVM should already have been trained.
+
+    Postconditions:
+    Returns the recognized license plate text.
+*/
 std::string TextRecognition::recognizePlate(
     const std::vector<cv::Mat> &characterImages)
 {
     std::string result;
+
+    std::filesystem::create_directories("realchars");
 
     for (const auto &img : characterImages)
     {
