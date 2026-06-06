@@ -5,7 +5,7 @@ if not exist build mkdir build
 
 cd build
 
-cmake ..
+cmake .. -DOpenCV_DIR=C:\opencv\build
 
 if errorlevel 1 (
     echo CMake configuration failed.
